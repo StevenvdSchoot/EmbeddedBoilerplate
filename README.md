@@ -45,11 +45,23 @@ TODO
 Contribution are more than welcome!. A few suggestions on what to work on are listed here, but this is by no means an exhaustive list. Any changes that make the project better are welcome.
 Please, submit any open changes to [GerritHub](https://review.gerrithub.io/q/project:StevenvdSchoot/EmbeddedBoilerplate). A list of open changes can be found on [https://review.gerrithub.io/q/status:open+-is:wip+project:StevenvdSchoot/EmbeddedBoilerplate](https://review.gerrithub.io/q/status:open+-is:wip+project:StevenvdSchoot/EmbeddedBoilerplate)
 
+### Add development container definition files
+
+At the moment only the dockerfile for the development container is included, the definition file, that instruct an IDE how to use this container, is missing.
+
+### Add example projects
+
+Add at least one example project showing how to create a simple embedded C++ projects based on this boilerplate project.
+
+### Add CI/CD
+
+Container images should automatically be build for both docker and podman.
+
 ### clang-wrapper
 
 This project relies on link time optimization to ensure the final program contains only the code necessary to run. At the moment upstream LLVM is plagued by [Issue 57207](https://github.com/llvm/llvm-project/issues/57207). In short, this results in linking with a static archive that contains both bitcode objects files and ELF object files may not work. In particular, linking with picolibc or libc++ where all object files compiled from assembly files are ELF file and compiled from c or c++ files are bitcode files does not work. To work around this issue small python script, clang-wrapper, is included that will convert assembly files into c (with gnu extensions) files and invokes clang on the generated c files. As a result object files generated from assembly file, that are compiled with the `-flto` of `-flto=thin` flags, are now bitcode files as well.
 
-This workaround, however, is not ideal. This behaviour may be very unexpected for the end user. Also the implementation of this wrapper required some hacks that may have unintended consequences. Preferably we modify (upstream) clang to emit LLVM_IR when `-flto` is used.
+This workaround, however, is not ideal. This behaviour may be very unexpected for the end user. Also the implementation of this wrapper required some hacks that may have unintended consequences. Preferably we modify (upstream) clang to emit LLVM-IR when `-flto` is used.
 
 ### Testing
 
