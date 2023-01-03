@@ -1,0 +1,35 @@
+From 20e12a6bad8820167888807c2f7703f39cc75873 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Sat, 31 Dec 2022 16:09:28 +0100
+Subject: [PATCH] Modify picolibc(++).ld to support embedded env
+
+---
+ picolibc.ld.in | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/picolibc.ld.in b/picolibc.ld.in
+index c757f7665..c0771d154 100644
+--- a/picolibc.ld.in
++++ b/picolibc.ld.in
+@@ -54,6 +54,8 @@ PHDRS
+ 	tls PT_TLS;
+ }
+ 
++INPUT(actuallibc.a)
++
+ SECTIONS
+ {
+ 	PROVIDE(__stack = ORIGIN(ram) + LENGTH(ram));
+@@ -208,8 +210,7 @@ SECTIONS
+ 	 * so we create a special segment here just to make room
+ 	 */
+ 	.tbss_space (NOLOAD) : {
+-		. = ADDR(.tbss);
+-		. = . + SIZEOF(.tbss);
++		. = ADDR(.tbss) + SIZEOF(.tbss);
+ 	} >ram AT>ram :ram
+ 
+ 	.bss (NOLOAD) : {
+-- 
+2.38.1
+

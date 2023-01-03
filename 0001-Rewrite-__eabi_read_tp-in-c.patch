@@ -1,0 +1,139 @@
+From d49cc3a9c2bc3d7bbc8de05b934bd6824285d330 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Wed, 28 Dec 2022 15:19:54 +0100
+Subject: [PATCH] Rewrite __eabi_read_tp in c
+
+---
+ .../libc/picolib/machine/arm/CMakeLists.txt   |  2 +-
+ newlib/libc/picolib/machine/arm/meson.build   |  2 +-
+ newlib/libc/picolib/machine/arm/read_tp.S     | 69 -------------------
+ newlib/libc/picolib/machine/arm/read_tp.c     | 18 +++++
+ 4 files changed, 20 insertions(+), 71 deletions(-)
+ delete mode 100644 newlib/libc/picolib/machine/arm/read_tp.S
+ create mode 100644 newlib/libc/picolib/machine/arm/read_tp.c
+
+diff --git a/newlib/libc/picolib/machine/arm/CMakeLists.txt b/newlib/libc/picolib/machine/arm/CMakeLists.txt
+index 4e40da4e3..8d66f7013 100644
+--- a/newlib/libc/picolib/machine/arm/CMakeLists.txt
++++ b/newlib/libc/picolib/machine/arm/CMakeLists.txt
+@@ -38,6 +38,6 @@ picolibc_sources(interrupt.c)
+ if(${_HAVE_PICOLIBC_TLS_API})
+   picolibc_sources(
+     tls.c
+-    read_tp.S
++    read_tp.c
+     )
+ endif()
+diff --git a/newlib/libc/picolib/machine/arm/meson.build b/newlib/libc/picolib/machine/arm/meson.build
+index 766ea5416..2c3b2ec6c 100644
+--- a/newlib/libc/picolib/machine/arm/meson.build
++++ b/newlib/libc/picolib/machine/arm/meson.build
+@@ -35,5 +35,5 @@
+ 
+ src_picolib += files('interrupt.c')
+ if thread_local_storage
+-  src_picolib += files('tls.c', 'read_tp.S')
++  src_picolib += files('tls.c', 'read_tp.c')
+ endif
+diff --git a/newlib/libc/picolib/machine/arm/read_tp.S b/newlib/libc/picolib/machine/arm/read_tp.S
+deleted file mode 100644
+index 78258db12..000000000
+--- a/newlib/libc/picolib/machine/arm/read_tp.S
++++ /dev/null
+@@ -1,69 +0,0 @@
+-/*
+- * SPDX-License-Identifier: BSD-3-Clause
+- *
+- * Copyright © 2020 Keith Packard
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- *
+- * 2. Redistributions in binary form must reproduce the above
+- *    copyright notice, this list of conditions and the following
+- *    disclaimer in the documentation and/or other materials provided
+- *    with the distribution.
+- *
+- * 3. Neither the name of the copyright holder nor the names of its
+- *    contributors may be used to endorse or promote products derived
+- *    from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+- * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+- * OF THE POSSIBILITY OF SUCH DAMAGE.
+- */
+-#include "arm_tls.h"
+-/*
+- * This cannot be a C ABI function as the compiler assumes that it
+- * does not modify anything other than r0 and lr.
+- */
+-	.syntax unified
+-	.text
+-	.align 4
+-	.p2align 4,,15
+-	.global __aeabi_read_tp
+-	.type __aeabi_read_tp,%function
+-#ifdef __thumb__
+-	.thumb
+-#endif
+-
+-__aeabi_read_tp:
+-	.cfi_sections .debug_frame
+-	.cfi_startproc
+-#ifdef ARM_TLS_CP15
+-	mrc 15, 0, r0, c13, c0, 3
+-#else
+-	/* Load the address of __tls */
+-	ldr r0,1f
+-	/* Dereference to get the value of __tls */
+-	ldr r0,[r0]
+-#endif
+-	/* All done, return to caller */
+-	bx lr
+-	.cfi_endproc
+-	
+-	/* Holds the address of __tls */
+-	.align 2
+-#ifndef ARM_TLS_CP15
+-1: .word __tls
+-#endif
+diff --git a/newlib/libc/picolib/machine/arm/read_tp.c b/newlib/libc/picolib/machine/arm/read_tp.c
+new file mode 100644
+index 000000000..c6f68925a
+--- /dev/null
++++ b/newlib/libc/picolib/machine/arm/read_tp.c
+@@ -0,0 +1,18 @@
++#include "arm_tls.h"
++
++#ifndef ARM_TLS_CP15
++extern void *__tls;
++#endif
++
++void *
++__aeabi_read_tp(void)
++{
++#ifdef ARM_TLS_CP15
++    // mrc 15, 0, r0, c13, c0, 3
++    void *result;
++    __asm__("mcr 15, 0, %0, c13, c0, 3" : "=r"(result) :);
++    return result;
++#else
++    return __tls;
++#endif
++}
+-- 
+2.38.1
+

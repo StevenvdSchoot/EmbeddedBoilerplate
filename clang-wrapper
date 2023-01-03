@@ -1,0 +1,255 @@
+#!/usr/bin/python
+
+import sys
+import os
+import subprocess
+import tempfile
+import pathlib
+import re
+
+whiteSpaceCharacters = [' ', '\t']
+
+class AssemblyToC:
+    __isMultilineComment = False
+    __symbolRenameList = {}
+    
+    def __toC(self, line, labelReplacements):
+        if len(line.strip()) <= 0:
+            return line
+        
+        for start, end, suffix in sorted(labelReplacements, key=lambda r: r[0], reverse=True):
+            line = line[:start] + self.__symbolRenameList[line[start:end]][0] + suffix + line[end:]
+        
+        return 'asm("' + line.replace('\\', '\\\\').replace('"', '\\"') + '");'
+    
+    def __call__(self, line):
+        result = ""
+        
+        linePartStart = 0
+        labelReplacements = []
+        foundNonWhiteCharacters = self.__isMultilineComment
+        for c, i in zip(line, range(len(line))):
+            if self.__isMultilineComment:
+                if c == '/':
+                    if 0 < i and line[i-1] == '*':
+                        self.__isMultilineComment = False
+                        result = result + line[linePartStart:i+1]
+                        linePartStart = i+1
+                        labelReplacements.clear()
+                continue
+            
+            if not foundNonWhiteCharacters:
+                if c == '#':
+                    return line
+                if c == '@':
+                    return line[:i] + '//' + line[i+1:]
+                if c not in whiteSpaceCharacters:
+                    foundNonWhiteCharacters = True
+            
+            if c == '/' and 0 < i:
+                if line[i-1] == '/' and not self.__isMultilineComment:
+                    return result + self.__toC(line[linePartStart:i-1], labelReplacements) + line[i-1:]
+            if c == '*' and 0 < i:
+                if line[i-1] == '/':
+                    self.__isMultilineComment = True
+                    result = result + self.__toC(line[linePartStart:i-1], labelReplacements)
+                    linePartStart = i-1
+                    labelReplacements.clear()
+            
+            if c == '.' and not self.__isMultilineComment:
+                isDotLabel = True
+                if line[i+1] == 'L' and (i == 0 or line[i-1] in whiteSpaceCharacters):
+                    # Assume private label
+                    nameLength = 2
+                    for nextChr in line[i+2:]:
+                        if nextChr in [':', ',', ';'] or nextChr in whiteSpaceCharacters:
+                            break
+                        nameLength = nameLength + 1
+                    name = line[i:i+nameLength]
+                    if name not in self.__symbolRenameList:
+                        self.__symbolRenameList[name] = (str(141879 + len(self.__symbolRenameList)), False)
+                    if i+nameLength < len(line):
+                        isDefenition = False
+                        for nextChr in line[i+nameLength:]:
+                            if nextChr == ':':
+                                isDefenition = True
+                            if nextChr not in whiteSpaceCharacters:
+                                break
+                        if isDefenition:
+                            self.__symbolRenameList[name] = (self.__symbolRenameList[name][0], True)
+                            labelReplacements.append((i, i+nameLength, ''))
+                        else:
+                            labelReplacements.append((i, i+nameLength, 'b' if self.__symbolRenameList[name][1] else 'f'))
+                    else:
+                        labelReplacements.append((i, i+nameLength, 'b' if self.__symbolRenameList[name][1] else 'f'))
+        
+        remainder = line[linePartStart:]
+        result = result + (remainder if self.__isMultilineComment else self.__toC(remainder, labelReplacements))
+
+        return result
+
+def setOutputFile(arguments, filename):
+    ind = arguments.index('-o') + 1
+    
+    while ind < len(arguments):
+        a = arguments[ind].strip()
+        if a[0] != '-':
+            arguments[ind] = filename
+            break
+        ind = ind + 1
+    
+    return arguments
+    
+def removeOutputFile(arguments):
+    result = list(arguments)
+        
+    removeList = []
+    for arg, ind in zip(result, range(len(result))):
+        if arg in ['-o', '-MT', '-MQ', '-MF']:
+            removeList.append(ind)
+            removeList.append(ind+1)
+    
+    for ind in sorted(removeList, reverse=True):
+        result.pop(ind)
+    
+    return result
+
+def detectVerbosityLevel(arguments):
+    verbose = 0
+    for arg in arguments:
+        if arg == '--verbose':
+            verbose = verbose + 1
+        if arg[0] == '-' and all(c == 'v' for c in arg[1:]):
+            verbose = verbose + (len(arg) - 1)
+    return verbose
+
+def detectInputFilenames(arguments):
+    filenames = []
+    
+    for arg in reversed(arguments):
+        if arg[0] == '-':
+            if arg == '-o':
+                filenames.pop()
+            break
+        filenames.append(arg)
+    
+    return filenames
+
+def replaceFilenames(arguments, filenameReplaceList):
+
+    lastOriginal = None
+
+    for i in reversed(range(len(arguments))):
+        arg = arguments[i]
+        if arg[0] == '-':
+            if arg == '-o' and lastOriginal is not None:
+                arguments[i+1] = lastOriginal
+            break
+        original, replacement = next(([orig, repl] for orig, repl in filenameReplaceList if arg == orig), (None, None))
+        if replacement is not None:
+            arguments[i] = replacement
+        lastOriginal = replacement
+    
+    return arguments
+
+def includeGnuExtensions(arguments):
+    result = list(arguments)
+    for arg, ind in zip(result, range(len(result))):
+        if arg.startswith("-std="):
+            std = arg[5:]
+            if std[0] == 'c':
+                result[ind] = '-std=gnu' + std[1:]
+            elif std[0:7] == 'iso9899':
+                version = std[7:]
+                versions= {'1990': 'gnu90', '199409': 'gnu90', '1999': 'gnu99', '2011': 'gnu11', '2017': 'gnu17'}
+                if version in versions:
+                    result[ind] = '-std=' + versions[version]
+                else:
+                    raise "" # TODO: Proper exception
+        
+    return result
+    
+def forceUseLto(arguments):
+    result = list(arguments)
+    
+    for arg, ind in zip(result, range(len(result))):
+        if arg.startswith('-flto'):
+            return result
+    
+    return ['-flto=thin'] + result
+
+def getCompilerCmd():
+    exeName = os.path.basename(sys.argv[0])
+    
+    m = re.fullmatch("(?P<target>.*-)?(?P<compiler>[^-]+)", exeName)
+    if m is None:
+        print(f"Invalid executable name \"{exeName}\"", file=sys.stderr)
+        exit()
+    
+    g = m.groupdict()
+    
+    if 'target' in g:
+        return [g['compiler'], '-target', g['target'][0:-1]]
+    else:
+        return [g['compiler']]
+
+def main():
+    compCmd = getCompilerCmd()
+    
+    arguments = sys.argv[1:]
+    verbose = detectVerbosityLevel(arguments)
+    inputFilenames = detectInputFilenames(arguments)
+    filenameReplaceList = []
+    tmpFiles = []
+    
+    for inputFilename in inputFilenames:
+        if pathlib.Path(inputFilename).suffix not in ['.s', '.S']:
+            continue
+    
+        out = tempfile.NamedTemporaryFile(mode='w+', suffix='.c')
+        tmpFiles.append(out)
+        
+        preprocessCommand = compCmd + ['-E', '-C'] + removeOutputFile(arguments)
+        if 1 <= verbose:
+            print(f"Executing preprocessor: {' '.join(preprocessCommand)}...")
+            sys.stdout.flush()
+        preprocessorResult = subprocess.run(preprocessCommand, stdout=subprocess.PIPE, text=True)
+
+        assemblyToC = AssemblyToC()
+        out.writelines([assemblyToC(line) + '\n' for line in preprocessorResult.stdout.splitlines()]);
+        out.flush()
+        if 2 <= verbose:
+            s =     " --------------------------------------\n"
+            s = s + " --- File content for " + inputFilename + ":\n"
+            s = s + " --------------------------------------\n"
+            out.seek(0)
+            s = s + out.read() + '\n'
+            s = s + " --------------------------------------\n"
+            print(s)
+            sys.stdout.flush()
+        
+        filenameReplaceList.append([inputFilename, out.name])
+    
+    
+    if 0 < len(filenameReplaceList):
+        c = replaceFilenames(arguments, filenameReplaceList)
+        c = includeGnuExtensions(c)
+        # c = forceUseLto(c)
+        cmd = compCmd + c
+    else:
+        cmd = compCmd + arguments
+    
+    if 1 <= verbose and 0 < len(inputFilenames):
+        print(f"Executing: {' '.join(cmd)}...")
+        sys.stdout.flush()
+    
+    result = subprocess.run(cmd)
+    
+    for f in tmpFiles:
+        f.close()
+    
+    return result.returncode
+
+if __name__ == '__main__':
+    sys.exit(main())
+

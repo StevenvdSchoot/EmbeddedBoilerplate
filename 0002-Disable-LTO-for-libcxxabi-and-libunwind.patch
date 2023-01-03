@@ -1,0 +1,48 @@
+From 292a7ee2d8ab3a2455b500410091a9bfa6838694 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Mon, 19 Dec 2022 12:21:06 +0000
+Subject: [PATCH 2/2] Disable LTO for libcxxabi and libunwind
+
+---
+ libunwind/src/CMakeLists.txt | 4 ++++
+ 1 files changed, 4 insertions(+)
+
+diff --git a/libunwind/src/CMakeLists.txt b/libunwind/src/CMakeLists.txt
+index 61df2737b..dc25e04c6 100644
+--- a/libunwind/src/CMakeLists.txt
++++ b/libunwind/src/CMakeLists.txt
+@@ -137,6 +137,7 @@ set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
+ 
+ # Build the shared library.
+ add_library(unwind_shared_objects OBJECT EXCLUDE_FROM_ALL ${LIBUNWIND_SOURCES} ${LIBUNWIND_HEADERS})
++set_target_properties(unwind_shared_objects PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+ if(CMAKE_C_COMPILER_ID STREQUAL MSVC)
+   target_compile_options(unwind_shared_objects PRIVATE /GR-)
+ else()
+@@ -156,6 +157,7 @@ endif()
+ 
+ if (LIBUNWIND_ENABLE_SHARED)
+   add_library(unwind_shared SHARED)
++  set_target_properties(unwind_shared PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+   target_link_libraries(unwind_shared PUBLIC unwind_shared_objects)
+   set_target_properties(unwind_shared
+     PROPERTIES
+@@ -174,6 +176,7 @@ endif()
+ 
+ # Build the static library.
+ add_library(unwind_static_objects OBJECT EXCLUDE_FROM_ALL ${LIBUNWIND_SOURCES} ${LIBUNWIND_HEADERS})
++set_target_properties(unwind_static_objects PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+ if(CMAKE_C_COMPILER_ID STREQUAL MSVC)
+   target_compile_options(unwind_static_objects PRIVATE /GR-)
+ else()
+@@ -196,6 +199,7 @@ endif()
+ 
+ if (LIBUNWIND_ENABLE_STATIC)
+   add_library(unwind_static STATIC)
++  set_target_properties(unwind_static PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+   target_link_libraries(unwind_static PUBLIC unwind_static_objects)
+   set_target_properties(unwind_static
+     PROPERTIES
+-- 
+2.38.1
+
