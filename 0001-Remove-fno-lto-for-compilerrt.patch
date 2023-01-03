@@ -1,0 +1,25 @@
+From 5893cfe825987172accfe737962f745589dd7823 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Wed, 28 Dec 2022 15:47:09 +0100
+Subject: [PATCH] Remove -fno-lto for compilerrt
+
+---
+ compiler-rt/cmake/Modules/AddCompilerRT.cmake | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/compiler-rt/cmake/Modules/AddCompilerRT.cmake b/compiler-rt/cmake/Modules/AddCompilerRT.cmake
+index 00bb892be595..bb02afb2f921 100644
+--- a/compiler-rt/cmake/Modules/AddCompilerRT.cmake
++++ b/compiler-rt/cmake/Modules/AddCompilerRT.cmake
+@@ -188,7 +188,7 @@ function(add_compiler_rt_runtime name type)
+   # Until we support this some other way, build compiler-rt runtime without LTO
+   # to allow non-LTO projects to link with it.
+   if(COMPILER_RT_HAS_FNO_LTO_FLAG)
+-    set(NO_LTO_FLAGS "-fno-lto")
++    set(NO_LTO_FLAGS "")
+   else()
+     set(NO_LTO_FLAGS "")
+   endif()
+-- 
+2.38.1
+

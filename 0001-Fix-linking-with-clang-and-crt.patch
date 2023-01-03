@@ -1,0 +1,54 @@
+From 9762857e7a55328affe1810679911349a51d5ce0 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Thu, 15 Dec 2022 15:48:24 +0000
+Subject: [PATCH] Fix linking with clang and crt
+
+---
+ picolibc.ld.in | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/picolibc.ld.in b/picolibc.ld.in
+index c69ad3c3a..267f429f5 100644
+--- a/picolibc.ld.in
++++ b/picolibc.ld.in
+@@ -42,8 +42,8 @@ ENTRY(_start)
+ 
+ MEMORY
+ {
+-	flash (rxai!w) : ORIGIN = DEFINED(__flash) ? __flash : 0x10000000, LENGTH = DEFINED(__flash_size) ? __flash_size : 0x10000
+-	ram (wxa!ri)   : ORIGIN = DEFINED(__ram  ) ? __ram   : 0x20000000, LENGTH = DEFINED(__ram_size  ) ? __ram_size   : 0x08000
++	flash (rxa!w) : ORIGIN = DEFINED(__flash) ? __flash : 0x10000000, LENGTH = DEFINED(__flash_size) ? __flash_size : 0x10000
++	ram (wxa!r)   : ORIGIN = DEFINED(__ram  ) ? __ram   : 0x20000000, LENGTH = DEFINED(__ram_size  ) ? __ram_size   : 0x08000
+ }
+ 
+ PHDRS
+@@ -54,6 +54,8 @@ PHDRS
+ 	tls PT_TLS;
+ }
+ 
++INPUT(actuallibc.a crt0.o)
++
+ SECTIONS
+ {
+ 	PROVIDE(__stack = ORIGIN(ram) + LENGTH(ram));
+@@ -137,7 +139,7 @@ SECTIONS
+ 		PROVIDE(__preserve_end__ = .);
+ 	} >ram AT>ram :ram
+ 
+-	.data : ALIGN_WITH_INPUT {
++	.data : ALIGN(4) {
+ 		*(.data .data.*)
+ 		*(.gnu.linkonce.d.*)
+ 
+@@ -159,7 +161,7 @@ SECTIONS
+ 	 * into the allocate ram addresses by the existing
+ 	 * data initialization code in crt0
+ 	 */
+-	.tdata : ALIGN_WITH_INPUT {
++	.tdata : ALIGN(4) {
+ 		*(.tdata .tdata.* .gnu.linkonce.td.*)
+ 		PROVIDE(__data_end = .);
+ 		PROVIDE(__tdata_end = .);
+-- 
+2.38.1
+

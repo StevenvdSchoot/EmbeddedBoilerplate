@@ -1,0 +1,21 @@
+[binaries]
+#c = ['clang', '-m32', '-target', 'armv7m-none-eabi', '-mfloat-abi=soft']
+c = ['armv7m-none-eabi-clang', '-mfloat-abi=soft']
+c_ld = ['lld', '-target', 'armv7m-none-eabi', '-flto=thin']
+ar = 'llvm-ar'
+as = 'llvm-as'
+nm = 'llvm-nm'
+strip = 'llvm-strip'
+# only needed to run tests
+exe_wrapper = ['sh', '-c', 'test -z "$PICOLIBC_TEST" || run-thumbv7m "$@"', 'run-thumbv7m']
+
+[host_machine]
+system = 'none'
+cpu_family = 'arm'
+cpu = 'arm'
+endian = 'little'
+
+[properties]
+c_args = ['-Werror=double-promotion', '-Wno-unsupported-floating-point-opt'] #, '-fshort-enums']
+skip_sanity_check = true
+

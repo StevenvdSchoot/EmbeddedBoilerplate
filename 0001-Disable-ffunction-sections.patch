@@ -1,0 +1,29 @@
+From 1257e1c3fdb922365b701eb5f9efd19541884678 Mon Sep 17 00:00:00 2001
+From: Steven van der Schoot <stevenvdschoot@gmail.com>
+Date: Sat, 31 Dec 2022 15:34:12 +0100
+Subject: [PATCH] Disable -ffunction-sections
+
+---
+ meson.build | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 10465b666..24fa6ac53 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1188,9 +1188,9 @@ inc = include_directories(inc_dirs)
+ # initialized read-only data segments when -fdata-sections
+ # is defined
+ arguments = []
+-if cc.has_argument('-ffunction-sections')
+-  arguments += ['-ffunction-sections']
+-endif
++#if cc.has_argument('-ffunction-sections')
++#  arguments += ['-ffunction-sections']
++#endif
+ 
+ if thread_local_storage
+   tls_arg = '-ftls-model=' + get_option('tls-model')
+-- 
+2.38.1
+
